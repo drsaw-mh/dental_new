@@ -1,21 +1,38 @@
 import { createServer } from 'node:http';
+import { store } from './data/store.js';
 import { buildBooking, createBooking } from './lib/booking.js';
+import { config } from './lib/config.js';
 import { buildDashboard } from './lib/dashboard.js';
-import { readJson, sendError, sendJson, sendNoContent } from './lib/http.js';
+import {
+  applyCommonHeaders,
+  isCorsPreflightAllowed,
+  readJson,
+  sendError,
+  sendJson,
+  sendNoContent,
+} from './lib/http.js';
 import {
   createResource,
   deleteResource,
+  authorizeDelete,
   listResource,
+  prepareCreateBody,
+  prepareUpdateBody,
   resources,
   updateResource,
 } from './lib/resources.js';
 
-const defaultPort = 4000;
-
 export function createApp() {
   return createServer(async (req, res) => {
     try {
+      applyCommonHeaders(req, res);
+
       if (req.method === 'OPTIONS') {
+        if (!isCorsPreflightAllowed(req)) {
+          sendError(res, 403, 'Origin is not allowed.');
+          return;
+        }
+
         sendNoContent(res);
         return;
       }
@@ -24,7 +41,11 @@ export function createApp() {
       const pathParts = url.pathname.split('/').filter(Boolean);
 
       if (url.pathname === '/health') {
-        sendJson(res, 200, { status: 'ok', service: 'dental-app-backend' });
+        sendJson(res, 200, {
+          status: 'ok',
+          service: 'dental-app-backend',
+          environment: config.env,
+        });
         return;
       }
 
@@ -34,13 +55,18 @@ export function createApp() {
           message: 'DentalOps API is running.',
           routes: [
             '/health',
+            '/api/profile',
             '/api/dashboard',
             '/api/booking',
             '/api/projects',
+            '/api/projectHistory',
             '/api/users',
             '/api/doctors',
             '/api/appointments',
             '/api/invoices',
+            '/api/payments',
+            '/api/pharmacy',
+            '/api/pharmacyPayments',
             '/api/followUps',
             '/api/procedures',
           ],
@@ -50,6 +76,18 @@ export function createApp() {
 
       if (url.pathname === '/api/dashboard' && req.method === 'GET') {
         sendJson(res, 200, { data: buildDashboard() });
+        return;
+      }
+
+      if (url.pathname === '/api/profile' && req.method === 'GET') {
+        sendJson(res, 200, { data: store.profile });
+        return;
+      }
+
+      if (url.pathname === '/api/profile' && req.method === 'PATCH') {
+        const body = await readJson(req);
+        store.profile = { ...store.profile, ...body };
+        sendJson(res, 200, { data: store.profile });
         return;
       }
 
@@ -93,7 +131,19 @@ export function createApp() {
 
       if (!id && req.method === 'POST') {
         const body = await readJson(req);
-        const result = createResource(resource, body);
+        const prepared = prepareCreateBody(resourceName, body);
+
+        if (prepared.forbidden) {
+          sendError(res, 403, prepared.forbidden);
+          return;
+        }
+
+        if (prepared.errors) {
+          sendError(res, 422, 'Validation failed.', prepared.errors);
+          return;
+        }
+
+        const result = createResource(resource, prepared.body);
 
         if (result.errors) {
           sendError(res, 422, 'Validation failed.', result.errors);
@@ -106,7 +156,19 @@ export function createApp() {
 
       if (id && req.method === 'PATCH') {
         const body = await readJson(req);
-        const result = updateResource(resource, id, body);
+        const prepared = prepareUpdateBody(resourceName, body);
+
+        if (prepared.forbidden) {
+          sendError(res, 403, prepared.forbidden);
+          return;
+        }
+
+        if (prepared.errors) {
+          sendError(res, 422, 'Validation failed.', prepared.errors);
+          return;
+        }
+
+        const result = updateResource(resource, id, prepared.body);
 
         if (result.notFound) {
           sendError(res, 404, 'Item not found.');
@@ -118,6 +180,13 @@ export function createApp() {
       }
 
       if (id && req.method === 'DELETE') {
+        const authorized = authorizeDelete(resourceName, url.searchParams);
+
+        if (authorized.forbidden) {
+          sendError(res, 403, authorized.forbidden);
+          return;
+        }
+
         if (!deleteResource(resource, id)) {
           sendError(res, 404, 'Item not found.');
           return;
@@ -139,10 +208,19 @@ export function createApp() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const port = Number(process.env.PORT ?? defaultPort);
   const server = createApp();
 
-  server.listen(port, () => {
-    console.log(`DentalOps API running on http://127.0.0.1:${port}`);
+  server.listen(config.apiPort, config.apiHost, () => {
+    console.log(
+      `DentalOps API running on http://${config.apiHost}:${config.apiPort}`,
+    );
   });
+
+  function shutdown(signal) {
+    console.log(`${signal} received. Shutting down DentalOps API.`);
+    server.close(() => process.exit(0));
+  }
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }

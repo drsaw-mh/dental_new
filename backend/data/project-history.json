@@ -1,0 +1,28 @@
+[
+  {
+    "id": "ph_mtfzpdm77feez",
+    "patient": "Nadia Hassan",
+    "number": "INV-1052",
+    "method": "Cash",
+    "status": "Ready to pay",
+    "amount": "RM 485",
+    "procedure": "Hygiene check",
+    "price": "First Visit - RM 80",
+    "procedurePrice": "RM 280",
+    "serviceFee": "Registration Service - RM 20",
+    "doctor": "Dr. Wong",
+    "dentition": "Adult",
+    "tooth": "Adult Tooth 11",
+    "clinicalNote": "B-108: Checked in at reception",
+    "serviceChargeItems": [],
+    "procedureItems": [],
+    "pharmacyItems": [
+      {
+        "name": "Gauze sterile pack",
+        "quantity": 3,
+        "price": "RM 105"
+      }
+    ],
+    "color": "#0B7285"
+  }
+]

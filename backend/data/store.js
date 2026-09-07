@@ -1,4 +1,41 @@
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const dataDir = dirname(fileURLToPath(import.meta.url));
+const projectHistoryFile = join(dataDir, 'project-history.json');
+
+function loadProjectHistory() {
+  if (!existsSync(projectHistoryFile)) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(readFileSync(projectHistoryFile, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+export function persistProjectHistory() {
+  writeFileSync(
+    projectHistoryFile,
+    `${JSON.stringify(store.projectHistory, null, 2)}\n`,
+  );
+}
+
 export const store = {
+  profile: {
+    id: 'profile_owner',
+    name: 'Owner Account',
+    role: 'Owner',
+    status: 'Active profile',
+    phone: '+60 12-555 0108',
+    email: 'owner@dentalops.local',
+    address: 'Owner suite',
+    access: 'Full',
+    language: 'English',
+  },
   users: [
     {
       id: 'usr_001',
@@ -7,7 +44,9 @@ export const store = {
       status: 'Active',
       initials: 'AR',
       color: '#0B7285',
+      age: '32',
       phone: '+60 12-555 0101',
+      address: '22 Jalan Ampang',
     },
     {
       id: 'usr_002',
@@ -16,7 +55,9 @@ export const store = {
       status: 'In clinic',
       initials: 'ML',
       color: '#7C3AED',
+      age: '41',
       phone: '+60 12-555 0102',
+      address: 'Room 2A',
     },
     {
       id: 'usr_003',
@@ -25,7 +66,9 @@ export const store = {
       status: 'Front desk',
       initials: 'SN',
       color: '#166534',
+      age: '28',
       phone: '+60 12-555 0103',
+      address: 'Front counter',
     },
     {
       id: 'usr_004',
@@ -34,7 +77,9 @@ export const store = {
       status: 'Surgery',
       initials: 'PM',
       color: '#C2410C',
+      age: '39',
       phone: '+60 12-555 0104',
+      address: 'Room 3B',
     },
   ],
   doctors: [
@@ -154,6 +199,7 @@ export const store = {
       id: 'inv_001',
       patient: 'Aina Rahman',
       number: 'INV-1048',
+      method: 'Cash',
       status: 'Ready to pay',
       amount: 280,
       currency: 'RM',
@@ -164,6 +210,7 @@ export const store = {
       id: 'inv_002',
       patient: 'Ben Tan',
       number: 'INV-1049',
+      method: 'Insurance',
       status: 'Insurance check',
       amount: 1850,
       currency: 'RM',
@@ -174,11 +221,77 @@ export const store = {
       id: 'inv_003',
       patient: 'Ravi Kumar',
       number: 'INV-1050',
+      method: 'Card',
       status: 'Deposit due',
       amount: 600,
       currency: 'RM',
       color: '#C2410C',
       paid: false,
+    },
+  ],
+  payments: [
+    {
+      id: 'pay_001',
+      patient: 'Aina Rahman',
+      invoiceNumber: 'INV-1048',
+      method: 'Cash',
+      amount: 280,
+      paidDate: 'Today',
+      reference: 'PAY-2040',
+      note: 'Front desk cash payment',
+    },
+  ],
+  pharmacy: [
+    {
+      id: 'med_001',
+      name: 'Amoxicillin 500mg',
+      category: 'Antibiotic',
+      stock: 86,
+      unit: 'capsules',
+      batch: 'AMX-24A',
+      expiry: 'Jan 2028',
+      status: 'In stock',
+      color: '#166534',
+    },
+    {
+      id: 'med_002',
+      name: 'Ibuprofen 400mg',
+      category: 'Pain control',
+      stock: 24,
+      unit: 'tablets',
+      batch: 'IBU-18C',
+      expiry: 'Nov 2027',
+      status: 'Low stock',
+      color: '#C2410C',
+    },
+    {
+      id: 'med_003',
+      name: 'Chlorhexidine mouthwash',
+      category: 'Oral rinse',
+      stock: 38,
+      unit: 'bottles',
+      batch: 'CHX-77B',
+      expiry: 'Aug 2027',
+      status: 'In stock',
+      color: '#0B7285',
+    },
+  ],
+  pharmacyPayments: [
+    {
+      id: 'rxp_001',
+      patient: 'Aina Rahman',
+      invoiceNumber: 'RX-2048',
+      method: 'Cash',
+      status: 'Paid',
+      amount: 120,
+    },
+    {
+      id: 'rxp_002',
+      patient: 'Ben Tan',
+      invoiceNumber: 'RX-2049',
+      method: 'Card',
+      status: 'Pending',
+      amount: 180,
     },
   ],
   followUps: [
@@ -245,53 +358,90 @@ export const store = {
   projects: [
     {
       id: 'prj_001',
+      projectId: 'PRJ-20260612-001',
       name: 'Digital consent rollout',
       owner: 'Operations',
       deadline: 'Jun 12',
+      clinicalNote: 'Consent review before treatment',
+      followUpReason: 'Confirm consent signed',
+      followUpDue: 'Today',
+      followUpChannel: 'Phone call',
+      followUpPriority: 'High',
       progress: 0.68,
       color: '#0B7285',
     },
     {
       id: 'prj_002',
+      projectId: 'PRJ-20260604-002',
       name: 'Sterilization audit',
       owner: 'Nursing lead',
       deadline: 'Jun 04',
+      clinicalNote: 'Check sterilization tray logs',
+      followUpReason: '',
+      followUpDue: '',
+      followUpChannel: '',
+      followUpPriority: '',
       progress: 0.42,
       color: '#C2410C',
     },
     {
       id: 'prj_003',
+      projectId: 'PRJ-20260620-003',
       name: 'Cashier reconciliation upgrade',
       owner: 'Finance',
       deadline: 'Jun 20',
+      clinicalNote: 'Confirm outstanding treatment balance',
+      followUpReason: 'Call patient for balance',
+      followUpDue: 'Tomorrow',
+      followUpChannel: 'WhatsApp',
+      followUpPriority: 'Medium',
       progress: 0.76,
       color: '#166534',
     },
     {
       id: 'prj_004',
+      projectId: 'PRJ-20260701-004',
       name: 'Doctor room refresh',
       owner: 'Facilities',
       deadline: 'Jul 01',
+      clinicalNote: 'Room layout affects surgical setup',
+      followUpReason: '',
+      followUpDue: '',
+      followUpChannel: '',
+      followUpPriority: '',
       progress: 0.31,
       color: '#7C3AED',
     },
     {
       id: 'prj_005',
+      projectId: 'PRJ-20260708-005',
       name: 'Lab case tracking rollout',
       owner: 'Treatment coordinator',
       deadline: 'Jul 08',
+      clinicalNote: 'Lab case pending shade match',
+      followUpReason: '',
+      followUpDue: '',
+      followUpChannel: '',
+      followUpPriority: '',
       progress: 0.18,
       color: '#2563EB',
     },
     {
       id: 'prj_006',
+      projectId: 'PRJ-20260628-006',
       name: 'Patient recall campaign',
       owner: 'Front desk',
       deadline: 'Jun 28',
+      clinicalNote: 'Recall family for pediatric review',
+      followUpReason: 'Book recall appointment',
+      followUpDue: 'Fri',
+      followUpChannel: 'SMS',
+      followUpPriority: 'Routine',
       progress: 0.44,
       color: '#9333EA',
     },
   ],
+  projectHistory: loadProjectHistory(),
 };
 
 export function nextId(prefix) {

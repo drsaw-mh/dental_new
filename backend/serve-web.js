@@ -1,10 +1,11 @@
-import { createReadStream, existsSync } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
+import { config } from './lib/config.js';
 
-const port = Number(process.env.WEB_PORT ?? 8080);
 const webRoot = resolve(process.cwd(), '..', 'build', 'web');
+const immutableAssetPattern = /\.(?:wasm|png|ico)$/;
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -16,10 +17,20 @@ const mimeTypes = {
   '.wasm': 'application/wasm',
 };
 
-function sendFile(res, filePath) {
+async function sendFile(res, filePath) {
   const contentType = mimeTypes[extname(filePath)] ?? 'application/octet-stream';
-  res.writeHead(200, { 'Content-Type': contentType });
-  createReadStream(filePath).pipe(res);
+  const contents = await readFile(filePath);
+  const cacheControl = immutableAssetPattern.test(filePath)
+    ? 'public, max-age=31536000, immutable'
+    : 'no-store, no-cache, must-revalidate, proxy-revalidate';
+
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Cache-Control': cacheControl,
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+  });
+  res.end(contents);
 }
 
 function resolveAsset(pathname) {
@@ -54,7 +65,7 @@ const server = createServer(async (req, res) => {
     try {
       const fileStat = await stat(requestedPath);
       if (fileStat.isFile()) {
-        sendFile(res, requestedPath);
+        await sendFile(res, requestedPath);
         return;
       }
     } catch {
@@ -62,9 +73,11 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  sendFile(res, join(webRoot, 'index.html'));
+  await sendFile(res, join(webRoot, 'index.html'));
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`DentalOps web running on http://127.0.0.1:${port}`);
+server.listen(config.webPort, config.webHost, () => {
+  console.log(
+    `DentalOps web running on http://${config.webHost}:${config.webPort}`,
+  );
 });
