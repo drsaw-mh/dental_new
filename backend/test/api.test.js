@@ -68,6 +68,7 @@ describe('DentalOps API', () => {
     assert.equal(response.status, 200);
     assert.equal(body.service, 'dental-app-backend');
     assert.ok(body.routes.includes('/api/projects'));
+    assert.ok(body.routes.includes('/api/patients'));
   });
 
   it('returns dashboard metrics', async () => {
@@ -106,6 +107,42 @@ describe('DentalOps API', () => {
     assert.equal(typeof body.data.metrics.openSlots, 'number');
     assert.ok(Array.isArray(body.data.slots));
     assert.ok(Array.isArray(body.data.queue));
+  });
+
+  it('returns linked patient records', async () => {
+    const listResponse = await fetch(`${baseUrl}/api/patient-records?q=Ben`);
+    const listBody = await listResponse.json();
+
+    assert.equal(listResponse.status, 200);
+    assert.equal(listBody.data.length, 1);
+    assert.equal(listBody.data[0].patient.name, 'Ben Tan');
+    assert.equal(listBody.data[0].procedures[0].name, 'Root Canal');
+    assert.equal(listBody.data[0].followUps[0].reason, 'Pain score check after root canal review');
+
+    const detailResponse = await fetch(`${baseUrl}/api/patient-records/pat_001`);
+    const detailBody = await detailResponse.json();
+
+    assert.equal(detailResponse.status, 200);
+    assert.equal(detailBody.data.patient.phone, '+60 12-550 7712');
+    assert.ok(detailBody.data.appointments.length >= 1);
+    assert.ok(detailBody.data.pharmacyPayments.length >= 1);
+    assert.ok(detailBody.data.clinicalNotes.length >= 1);
+  });
+
+  it('keeps patients separate from login users', async () => {
+    const usersResponse = await fetch(`${baseUrl}/api/users?q=Ben`);
+    const usersBody = await usersResponse.json();
+
+    assert.equal(usersResponse.status, 200);
+    assert.equal(usersBody.data.length, 0);
+
+    const patientsResponse = await fetch(`${baseUrl}/api/patients?q=Ben`);
+    const patientsBody = await patientsResponse.json();
+
+    assert.equal(patientsResponse.status, 200);
+    assert.equal(patientsBody.data.length, 1);
+    assert.equal(patientsBody.data[0].name, 'Ben Tan');
+    assert.equal(patientsBody.data[0].role, 'Patient');
   });
 
   it('creates an appointment through booking', async () => {

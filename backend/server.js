@@ -15,7 +15,9 @@ import {
   createResource,
   deleteResource,
   authorizeDelete,
+  getPatientRecord,
   listResource,
+  listPatientRecords,
   prepareCreateBody,
   prepareUpdateBody,
   resources,
@@ -61,13 +63,16 @@ export function createApp() {
             '/api/projects',
             '/api/projectHistory',
             '/api/users',
+            '/api/patients',
             '/api/doctors',
             '/api/appointments',
             '/api/invoices',
             '/api/payments',
             '/api/pharmacy',
+            '/api/pharmacyDispenses',
             '/api/pharmacyPayments',
             '/api/followUps',
+            '/api/patient-records',
             '/api/procedures',
           ],
         });
@@ -109,12 +114,34 @@ export function createApp() {
         return;
       }
 
+      if (url.pathname === '/api/patient-records' && req.method === 'GET') {
+        sendJson(res, 200, { data: listPatientRecords(url.searchParams) });
+        return;
+      }
+
       if (pathParts[0] !== 'api') {
         sendError(res, 404, 'Route not found.');
         return;
       }
 
       const resourceName = pathParts[1];
+
+      if (resourceName === 'patient-records' && pathParts[2]) {
+        if (req.method !== 'GET') {
+          sendError(res, 405, 'Method not allowed.');
+          return;
+        }
+
+        const record = getPatientRecord(pathParts[2]);
+        if (!record) {
+          sendError(res, 404, 'Patient record not found.');
+          return;
+        }
+
+        sendJson(res, 200, { data: record });
+        return;
+      }
+
       const resource = resources[resourceName];
 
       if (!resource) {

@@ -5,11 +5,11 @@ import 'package:http/http.dart' as http;
 import 'api_config.dart';
 
 class ApiClient {
-  const ApiClient({http.Client? client}) : _client = client;
+  const ApiClient({this.injectedClient});
 
-  final http.Client? _client;
+  final http.Client? injectedClient;
 
-  http.Client get client => _client ?? http.Client();
+  http.Client get client => injectedClient ?? http.Client();
 
   Uri uri(String path) => Uri.parse('$apiBaseUrl$path');
 

@@ -7,6 +7,12 @@ export const resources = {
     required: ['name', 'role', 'status', 'age', 'phone', 'address'],
     searchable: ['name', 'role', 'status', 'age', 'phone', 'address'],
   },
+  patients: {
+    collection: store.patients,
+    prefix: 'pat',
+    required: ['name', 'status', 'age', 'phone', 'address'],
+    searchable: ['name', 'status', 'age', 'phone', 'address'],
+  },
   doctors: {
     collection: store.doctors,
     prefix: 'doc',
@@ -56,6 +62,12 @@ export const resources = {
     required: ['patient', 'invoiceNumber', 'method', 'status', 'amount'],
     searchable: ['patient', 'invoiceNumber', 'method', 'status'],
   },
+  pharmacyDispenses: {
+    collection: store.pharmacyDispenses,
+    prefix: 'rxd',
+    required: ['patient', 'medicine', 'dose', 'status'],
+    searchable: ['patient', 'medicine', 'dose', 'status'],
+  },
   followUps: {
     collection: store.followUps,
     prefix: 'fol',
@@ -96,6 +108,10 @@ const procedureManagerRoles = new Set(['Admin', 'Owner']);
 export function prepareCreateBody(resourceName, body) {
   if (resourceName === 'procedures') {
     return prepareProcedureBody(body);
+  }
+
+  if (resourceName === 'patients') {
+    return { body: { role: 'Patient', ...body } };
   }
 
   if (resourceName !== 'users') {
@@ -165,6 +181,80 @@ export function listResource(config, searchParams) {
       String(item[key] ?? '').toLowerCase().includes(query),
     );
   });
+}
+
+export function listPatientRecords(searchParams) {
+  const query = searchParams.get('q')?.toLowerCase();
+
+  return store.patients
+    .map(buildPatientRecord)
+    .filter((record) => {
+      if (!query) {
+        return true;
+      }
+
+      return [
+        record.patient.name,
+        record.patient.phone,
+        record.patient.address,
+        ...record.appointments.map((appointment) => appointment.procedure),
+        ...record.procedures.map((procedure) => procedure.name),
+        ...record.invoices.map((invoice) => invoice.number),
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query);
+    });
+}
+
+export function getPatientRecord(idOrName) {
+  const normalized = decodeURIComponent(idOrName).toLowerCase();
+  const patient = store.patients.find((user) => {
+    return (
+      user.id?.toLowerCase() === normalized ||
+      user.name.toLowerCase() === normalized
+    );
+  });
+
+  if (!patient) {
+    return null;
+  }
+
+  return buildPatientRecord(patient);
+}
+
+function buildPatientRecord(patient) {
+  const patientName = patient.name;
+
+  return {
+    patient,
+    appointments: store.appointments.filter((item) => item.patient === patientName),
+    procedures: store.procedures.filter((item) => item.patient === patientName),
+    projects: store.projects.filter((item) => item.name === patientName),
+    invoices: store.invoices.filter((item) => item.patient === patientName),
+    payments: store.payments.filter((item) => item.patient === patientName),
+    pharmacyDispenses: store.pharmacyDispenses.filter(
+      (item) => item.patient === patientName,
+    ),
+    pharmacyPayments: store.pharmacyPayments.filter(
+      (item) => item.patient === patientName,
+    ),
+    followUps: store.followUps.filter((item) => item.patient === patientName),
+    clinicalNotes: [
+      ...store.projects
+        .filter((item) => item.name === patientName && item.clinicalNote)
+        .map((item) => ({
+          source: item.projectId,
+          note: item.clinicalNote,
+        })),
+      ...store.invoices
+        .filter((item) => item.patient === patientName && item.clinicalNote)
+        .map((item) => ({
+          source: item.number,
+          note: item.clinicalNote,
+        })),
+    ],
+  };
 }
 
 export function createResource(config, body) {

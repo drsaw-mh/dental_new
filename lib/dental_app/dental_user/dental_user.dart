@@ -65,6 +65,7 @@ class _ClinicShellState extends State<ClinicShell> {
   int selectedIndex = 0;
   RoleFilter selectedRole = RoleFilter.all;
   var users = [...sampleUsers];
+  var patients = [...samplePatients];
   var procedures = [...sampleProcedures];
   var projectHistoryInvoices = <Invoice>[];
   final projectHistoryViewModel = ProjectHistoryViewModel();
@@ -82,6 +83,12 @@ class _ClinicShellState extends State<ClinicShell> {
       Icons.people_alt,
       'Users',
       'Users',
+    ),
+    _NavigationItem(
+      Icons.personal_injury_outlined,
+      Icons.personal_injury,
+      'Patients',
+      'Patients',
     ),
     _NavigationItem(
       Icons.event_available_outlined,
@@ -203,6 +210,7 @@ class _ClinicShellState extends State<ClinicShell> {
                 selectedRole: selectedRole,
                 onRoleChanged: (role) => setState(() => selectedRole = role),
                 users: users,
+                patients: patients,
                 onUserAdded: (user) {
                   setState(() => users = [user, ...users]);
                 },
@@ -254,8 +262,8 @@ class _ClinicShellState extends State<ClinicShell> {
 
 int _defaultPageIndexForRole(RoleFilter role) {
   return switch (role) {
-    RoleFilter.cashier => 5,
-    RoleFilter.doctor => 2,
+    RoleFilter.cashier => 6,
+    RoleFilter.doctor => 3,
     RoleFilter.admin || RoleFilter.owner => 0,
     RoleFilter.all || RoleFilter.user => 0,
   };
@@ -271,6 +279,7 @@ class _ClinicPage extends StatelessWidget {
     required this.selectedRole,
     required this.onRoleChanged,
     required this.users,
+    required this.patients,
     required this.onUserAdded,
     required this.procedures,
     required this.onProcedureAdded,
@@ -288,6 +297,7 @@ class _ClinicPage extends StatelessWidget {
   final RoleFilter selectedRole;
   final ValueChanged<RoleFilter> onRoleChanged;
   final List<ClinicUser> users;
+  final List<ClinicUser> patients;
   final ValueChanged<ClinicUser> onUserAdded;
   final List<DentalProcedure> procedures;
   final ValueChanged<DentalProcedure> onProcedureAdded;
@@ -306,15 +316,17 @@ class _ClinicPage extends StatelessWidget {
               selectedRole: selectedRole,
               onRoleChanged: onRoleChanged,
               users: users,
+              patients: patients,
             ),
-            2 => const BookingView(),
-            3 => const QueueView(),
-            4 => const DoctorsView(),
-            5 => CashierView(onProjectInvoiceCreated: onProjectInvoiceCreated),
-            6 => const FollowUpView(),
-            7 => const PharmacyView(),
-            8 => ProcedureView(
-              users: users,
+            2 => PatientListView(patients: patients),
+            3 => const BookingView(),
+            4 => const QueueView(),
+            5 => const DoctorsView(),
+            6 => CashierView(onProjectInvoiceCreated: onProjectInvoiceCreated),
+            7 => const FollowUpView(),
+            8 => const PharmacyView(),
+            9 => ProcedureView(
+              users: [...users, ...patients],
               procedures: procedures,
               onProcedureUpdated: onProcedureUpdated,
               onProcedureDeleted: onProcedureDeleted,
@@ -341,7 +353,7 @@ class _ClinicPage extends StatelessWidget {
           ).showSnackBar(SnackBar(content: Text('${user.name} added')));
         },
       ),
-      8 => _HeaderAction(
+      9 => _HeaderAction(
         icon: Icons.add,
         label: 'New Procedure',
         onPressed: () async {
@@ -2263,22 +2275,30 @@ class _DetailSummaryTile extends StatelessWidget {
   }
 }
 
-class UsersView extends StatelessWidget {
+class UsersView extends StatefulWidget {
   const UsersView({
     super.key,
     required this.selectedRole,
     required this.onRoleChanged,
     required this.users,
+    required this.patients,
   });
 
   final RoleFilter selectedRole;
   final ValueChanged<RoleFilter> onRoleChanged;
   final List<ClinicUser> users;
+  final List<ClinicUser> patients;
 
   @override
+  State<UsersView> createState() => _UsersViewState();
+}
+
+class _UsersViewState extends State<UsersView> {
+  @override
   Widget build(BuildContext context) {
-    final visibleUsers = users.where((user) {
-      return selectedRole == RoleFilter.all || user.role == selectedRole.label;
+    final visibleUsers = widget.users.where((user) {
+      return widget.selectedRole == RoleFilter.all ||
+          user.role == widget.selectedRole.label;
     }).toList();
 
     return _Panel(
@@ -2298,8 +2318,10 @@ class UsersView extends StatelessWidget {
                     icon: Icon(role.icon),
                   ),
               ],
-              selected: {selectedRole},
-              onSelectionChanged: (selection) => onRoleChanged(selection.first),
+              selected: {widget.selectedRole},
+              onSelectionChanged: (selection) {
+                widget.onRoleChanged(selection.first);
+              },
             ),
           ),
           const SizedBox(height: 16),
@@ -2307,10 +2329,481 @@ class UsersView extends StatelessWidget {
             compactAspectRatio: 0.92,
             minTileWidth: 260,
             wideAspectRatio: 1.05,
-            children: [for (final user in visibleUsers) _UserCard(user: user)],
+            children: [
+              for (final user in visibleUsers)
+                _UserCard(user: user, onTap: null),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class PatientListView extends StatefulWidget {
+  const PatientListView({super.key, required this.patients});
+
+  final List<ClinicUser> patients;
+
+  @override
+  State<PatientListView> createState() => _PatientListViewState();
+}
+
+class _PatientListViewState extends State<PatientListView> {
+  final searchController = TextEditingController();
+  ClinicUser? selectedPatient;
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final patient = selectedPatient;
+    if (patient != null) {
+      return PatientRecordView(
+        patient: patient,
+        onBack: () => setState(() => selectedPatient = null),
+      );
+    }
+
+    final query = searchController.text.trim().toLowerCase();
+    final visiblePatients = widget.patients.where((patient) {
+      if (query.isEmpty) {
+        return true;
+      }
+
+      return [
+        patient.name,
+        patient.status,
+        patient.age,
+        patient.phone,
+        patient.address,
+      ].join(' ').toLowerCase().contains(query);
+    }).toList();
+
+    return _Panel(
+      title: 'Patients',
+      action: '${visiblePatients.length} records',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: searchController,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Search patients',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: searchController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        searchController.clear();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (visiblePatients.isEmpty)
+            const _EmptyState(
+              icon: Icons.personal_injury_outlined,
+              title: 'No patients found',
+              message: 'Try another name, phone number, or status.',
+            )
+          else
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFE1E7EC)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  for (final entry in visiblePatients.indexed) ...[
+                    _PatientListRow(
+                      patient: entry.$2,
+                      onTap: () => setState(() => selectedPatient = entry.$2),
+                    ),
+                    if (entry.$1 != visiblePatients.length - 1)
+                      const Divider(height: 1, color: Color(0xFFE1E7EC)),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PatientListRow extends StatelessWidget {
+  const _PatientListRow({required this.patient, required this.onTap});
+
+  final ClinicUser patient;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 620;
+
+        return Material(
+          color: Colors.white,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: compact
+                  ? Row(
+                      children: [
+                        _PatientAvatar(patient: patient),
+                        const SizedBox(width: 12),
+                        Expanded(child: _PatientCompactDetails(patient)),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        _PatientAvatar(patient: patient),
+                        const SizedBox(width: 12),
+                        Expanded(flex: 3, child: _PatientNameBlock(patient)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            'Age ${patient.age}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            patient.phone,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xFF0B7285)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        _StatusPill(
+                          label: patient.status,
+                          color: patient.color,
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PatientAvatar extends StatelessWidget {
+  const _PatientAvatar({required this.patient});
+
+  final ClinicUser patient;
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      backgroundColor: patient.color.withValues(alpha: 0.15),
+      child: Text(
+        patient.initials,
+        style: TextStyle(color: patient.color, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+}
+
+class _PatientNameBlock extends StatelessWidget {
+  const _PatientNameBlock(this.patient);
+
+  final ClinicUser patient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(patient.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 3),
+        Text(
+          patient.address,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Color(0xFF52606D)),
+        ),
+      ],
+    );
+  }
+}
+
+class _PatientCompactDetails extends StatelessWidget {
+  const _PatientCompactDetails(this.patient);
+
+  final ClinicUser patient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PatientNameBlock(patient),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _StatusPill(label: 'Age ${patient.age}', color: patient.color),
+            _StatusPill(label: patient.phone, color: const Color(0xFF0B7285)),
+            _StatusPill(label: patient.status, color: patient.color),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class PatientRecordView extends StatelessWidget {
+  const PatientRecordView({
+    super.key,
+    required this.patient,
+    required this.onBack,
+  });
+
+  final ClinicUser patient;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final record = PatientRecord.forPatient(patient);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextButton.icon(
+          onPressed: onBack,
+          icon: const Icon(Icons.arrow_back),
+          label: const Text('Back to patients'),
+        ),
+        const SizedBox(height: 8),
+        _Panel(
+          title: 'Patient Record',
+          action: patient.status,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: patient.color.withValues(alpha: 0.14),
+                    child: Text(
+                      patient.initials,
+                      style: TextStyle(
+                        color: patient.color,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          patient.name,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _StatusPill(
+                              label: 'Age ${patient.age}',
+                              color: patient.color,
+                            ),
+                            _StatusPill(
+                              label: patient.phone,
+                              color: const Color(0xFF0B7285),
+                            ),
+                            _StatusPill(
+                              label: patient.address,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _DetailSummaryRow(
+                items: [
+                  DetailSummary(
+                    'Appointments',
+                    '${record.appointments.length}',
+                    const Color(0xFF0B7285),
+                  ),
+                  DetailSummary(
+                    'Procedures',
+                    '${record.procedures.length + record.projects.length}',
+                    const Color(0xFF7C3AED),
+                  ),
+                  DetailSummary(
+                    'Invoices',
+                    '${record.invoices.length}',
+                    const Color(0xFF166534),
+                  ),
+                  DetailSummary(
+                    'Follow Ups',
+                    '${record.followUps.length}',
+                    const Color(0xFFC2410C),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _TwoColumn(
+          left: _Panel(
+            title: 'Appointment History',
+            action: '${record.appointments.length} visits',
+            child: _PatientRecordList(
+              emptyText: 'No appointments yet',
+              children: [
+                for (final appointment in record.appointments)
+                  _PatientRecordLine(
+                    icon: Icons.event_available_outlined,
+                    title: appointment.procedure,
+                    subtitle: '${appointment.time} with ${appointment.doctor}',
+                    color: appointment.color,
+                  ),
+              ],
+            ),
+          ),
+          right: _Panel(
+            title: 'Clinical Notes',
+            action: '${record.clinicalNotes.length} notes',
+            child: _PatientRecordList(
+              emptyText: 'No clinical notes yet',
+              children: [
+                for (final note in record.clinicalNotes)
+                  _PatientRecordLine(
+                    icon: Icons.note_alt_outlined,
+                    title: note.title,
+                    subtitle: note.detail,
+                    color: note.color,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _TwoColumn(
+          left: _Panel(
+            title: 'Treatment & Procedures',
+            action:
+                '${record.procedures.length + record.projects.length} items',
+            child: _PatientRecordList(
+              emptyText: 'No treatment plan yet',
+              children: [
+                for (final procedure in record.procedures)
+                  _PatientRecordLine(
+                    icon: Icons.healing_outlined,
+                    title: procedure.name,
+                    subtitle:
+                        '${procedure.stage} - ${procedure.doctor} - ${procedure.price}',
+                    color: procedure.color,
+                  ),
+                for (final project in record.projects)
+                  _PatientRecordLine(
+                    icon: Icons.work_outline,
+                    title: project.procedure,
+                    subtitle:
+                        '${project.projectId} - ${project.owner} - ${project.tooth}',
+                    color: project.color,
+                  ),
+              ],
+            ),
+          ),
+          right: _Panel(
+            title: 'Billing & Pharmacy',
+            action:
+                '${record.invoices.length + record.pharmacyPayments.length} items',
+            child: _PatientRecordList(
+              emptyText: 'No billing records yet',
+              children: [
+                for (final invoice in record.invoices)
+                  _PatientRecordLine(
+                    icon: Icons.receipt_long_outlined,
+                    title: '${invoice.number} - ${invoice.amount}',
+                    subtitle: '${invoice.method} - ${invoice.status}',
+                    color: invoice.color,
+                  ),
+                for (final dispense in record.pharmacyDispenses)
+                  _PatientRecordLine(
+                    icon: Icons.medication_outlined,
+                    title: dispense.medicine,
+                    subtitle: '${dispense.dose} - ${dispense.status}',
+                    color: dispense.color,
+                  ),
+                for (final payment in record.pharmacyPayments)
+                  _PatientRecordLine(
+                    icon: Icons.local_pharmacy_outlined,
+                    title: '${payment.invoiceNumber} - ${payment.amount}',
+                    subtitle: '${payment.method} - ${payment.status}',
+                    color: payment.color,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _Panel(
+          title: 'Follow Up Plan',
+          action: '${record.followUps.length} pending',
+          child: _PatientRecordList(
+            emptyText: 'No follow ups yet',
+            children: [
+              for (final followUp in record.followUps)
+                _PatientRecordLine(
+                  icon: Icons.event_repeat,
+                  title: followUp.reason,
+                  subtitle:
+                      '${followUp.due} - ${followUp.channel} - ${followUp.priority}',
+                  color: followUp.color,
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -2502,6 +2995,7 @@ class _RoleDropdown extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<RoleFilter>(
+        isExpanded: true,
         initialValue: value,
         items: [
           for (final role in roles)
@@ -3362,7 +3856,6 @@ class _CreateInvoiceDetailState extends State<_CreateInvoiceDetail> {
 
   void joinProcedureWithSelection() {
     final procedureName = procedureController.text.trim();
-    final procedurePrice = procedurePriceController.text.trim();
     final joinedTeeth = '${selectedDentition.label} $selectedTooth';
 
     if (procedureName.isEmpty || procedureName == 'Doctor Fees') {
@@ -4192,32 +4685,44 @@ class _MtdCashierDetailScaffold extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                 ],
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MtdOutlineCommand(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final commands = [
+                      _MtdOutlineCommand(
                         label: 'Add Procedure',
                         icon: Icons.add_circle_outline,
                         onPressed: onPickProcedure,
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _MtdOutlineCommand(
+                      _MtdOutlineCommand(
                         label: 'Add Product',
                         icon: Icons.add_shopping_cart_outlined,
                         onPressed: onPickMedicine,
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _MtdOutlineCommand(
+                      _MtdOutlineCommand(
                         label: 'More Service Charge',
                         icon: Icons.room_service_outlined,
                         onPressed: onAddServiceCharge,
                       ),
-                    ),
-                  ],
+                    ];
+
+                    if (constraints.maxWidth < 720) {
+                      return Column(children: commands);
+                    }
+
+                    return Row(
+                      children: [
+                        for (
+                          var index = 0;
+                          index < commands.length;
+                          index++
+                        ) ...[
+                          Expanded(child: commands[index]),
+                          if (index < commands.length - 1)
+                            const SizedBox(width: 12),
+                        ],
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 _MtdInvoiceTable(
@@ -4641,16 +5146,24 @@ class _MtdOutlineCommand extends StatelessWidget {
   Widget build(BuildContext context) {
     final teal = Theme.of(context).colorScheme.primary;
 
-    return OutlinedButton.icon(
+    return OutlinedButton(
       onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: teal,
         minimumSize: const Size.fromHeight(48),
         side: BorderSide(color: teal),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         textStyle: const TextStyle(fontWeight: FontWeight.w900),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Icon(icon),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ],
       ),
     );
   }
@@ -5471,6 +5984,7 @@ Future<PharmacyInvoiceItem?> showMedicineAmountDialog(
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<PriceNature>(
+                isExpanded: true,
                 initialValue: selectedPriceNature,
                 decoration: const InputDecoration(
                   labelText: 'Sell as',
@@ -5865,6 +6379,7 @@ class _PaymentMethodSelectField extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: selectedMethod,
         items: [
           for (final method in methods)
@@ -5886,22 +6401,200 @@ class _PaymentMethodSelectField extends StatelessWidget {
   }
 }
 
-class FollowUpView extends StatelessWidget {
+class FollowUpView extends StatefulWidget {
   const FollowUpView({super.key});
 
   @override
+  State<FollowUpView> createState() => _FollowUpViewState();
+}
+
+class _FollowUpViewState extends State<FollowUpView> {
+  final patientFilterController = TextEditingController();
+  final doctorFilterController = TextEditingController();
+  final specialityFilterController = TextEditingController();
+
+  @override
+  void dispose() {
+    patientFilterController.dispose();
+    doctorFilterController.dispose();
+    specialityFilterController.dispose();
+    super.dispose();
+  }
+
+  List<FollowUp> get visibleFollowUps {
+    final patientQuery = patientFilterController.text.trim().toLowerCase();
+    final doctorQuery = doctorFilterController.text.trim().toLowerCase();
+    final specialityQuery = specialityFilterController.text
+        .trim()
+        .toLowerCase();
+
+    return sampleFollowUps.where((followUp) {
+      final matchesPatient =
+          patientQuery.isEmpty ||
+          followUp.patient.toLowerCase().contains(patientQuery);
+      final matchesDoctor =
+          doctorQuery.isEmpty ||
+          followUp.doctor.toLowerCase().contains(doctorQuery);
+      final matchesSpeciality =
+          specialityQuery.isEmpty ||
+          followUp.speciality.toLowerCase().contains(specialityQuery);
+
+      return matchesPatient && matchesDoctor && matchesSpeciality;
+    }).toList();
+  }
+
+  void clearFilters() {
+    patientFilterController.clear();
+    doctorFilterController.clear();
+    specialityFilterController.clear();
+    setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final followUps = visibleFollowUps;
+
     return _Panel(
       title: 'Follow Up Board',
-      action: '14 open',
-      child: _ResponsiveGrid(
-        compactAspectRatio: 0.95,
-        minTileWidth: 290,
-        wideAspectRatio: 1.05,
+      action: '${followUps.length} open',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final followUp in sampleFollowUps)
-            _FollowUpCard(followUp: followUp),
+          _FollowUpFilters(
+            patientController: patientFilterController,
+            doctorController: doctorFilterController,
+            specialityController: specialityFilterController,
+            onChanged: () => setState(() {}),
+            onClear: clearFilters,
+          ),
+          const SizedBox(height: 16),
+          if (followUps.isEmpty)
+            const _EmptyState(
+              icon: Icons.event_repeat_outlined,
+              title: 'No follow ups found',
+              message: 'Try another patient, doctor, or speciality filter.',
+            )
+          else
+            _ResponsiveGrid(
+              compactAspectRatio: 0.95,
+              minTileWidth: 290,
+              wideAspectRatio: 1.05,
+              children: [
+                for (final followUp in followUps)
+                  _FollowUpCard(followUp: followUp),
+              ],
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _FollowUpFilters extends StatelessWidget {
+  const _FollowUpFilters({
+    required this.patientController,
+    required this.doctorController,
+    required this.specialityController,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController patientController;
+  final TextEditingController doctorController;
+  final TextEditingController specialityController;
+  final VoidCallback onChanged;
+  final VoidCallback onClear;
+
+  bool get hasFilters =>
+      patientController.text.isNotEmpty ||
+      doctorController.text.isNotEmpty ||
+      specialityController.text.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 760;
+        final fields = [
+          _FollowUpFilterField(
+            controller: patientController,
+            label: 'Patient name',
+            icon: Icons.person_search_outlined,
+            onChanged: onChanged,
+          ),
+          _FollowUpFilterField(
+            controller: doctorController,
+            label: 'Doctor',
+            icon: Icons.medical_services_outlined,
+            onChanged: onChanged,
+          ),
+          _FollowUpFilterField(
+            controller: specialityController,
+            label: 'Speciality',
+            icon: Icons.badge_outlined,
+            onChanged: onChanged,
+          ),
+        ];
+
+        if (compact) {
+          return Column(
+            children: [
+              for (final field in fields) ...[
+                field,
+                const SizedBox(height: 10),
+              ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: hasFilters ? onClear : null,
+                  icon: const Icon(Icons.filter_alt_off_outlined),
+                  label: const Text('Clear'),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            for (final field in fields) ...[
+              Expanded(child: field),
+              const SizedBox(width: 10),
+            ],
+            OutlinedButton.icon(
+              onPressed: hasFilters ? onClear : null,
+              icon: const Icon(Icons.filter_alt_off_outlined),
+              label: const Text('Clear'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FollowUpFilterField extends StatelessWidget {
+  const _FollowUpFilterField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: (_) => onChanged(),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -7302,6 +7995,7 @@ class _ProcedureDiscountFields extends StatelessWidget {
     final modeField = Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: DropdownButtonFormField<ProcedureDiscountMode>(
+        isExpanded: true,
         initialValue: discountMode,
         decoration: _inputDecoration(
           icon: Icons.discount_outlined,
@@ -7499,6 +8193,7 @@ class _ApplyProcedureProjectDialogState
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
+                        isExpanded: true,
                         initialValue: priority,
                         decoration: _inputDecoration(
                           icon: Icons.flag_outlined,
@@ -7796,13 +8491,17 @@ class _SideNavButton extends StatelessWidget {
                       : const Color(0xFF52606D),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  item.label,
-                  style: TextStyle(
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    color: selected
-                        ? Theme.of(context).colorScheme.primary
-                        : const Color(0xFF344054),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: selected
+                          ? Theme.of(context).colorScheme.primary
+                          : const Color(0xFF344054),
+                    ),
                   ),
                 ),
               ],
@@ -8435,63 +9134,6 @@ class _BookingSlotTile extends StatelessWidget {
       subtitle: '${slot.doctor} - ${slot.type}',
       trailing: slot.status,
       color: slot.color,
-    );
-  }
-}
-
-class _ProjectTile extends StatelessWidget {
-  const _ProjectTile({required this.project, this.onViewDetails});
-
-  final ClinicProject project;
-  final VoidCallback? onViewDetails;
-
-  @override
-  Widget build(BuildContext context) {
-    final note = project.clinicalNote.isEmpty
-        ? ''
-        : ' - Note: ${project.clinicalNote}';
-    final followUp = project.followUpReason.isEmpty
-        ? ''
-        : ' - Follow up: ${project.followUpDue} ${project.followUpChannel} (${project.followUpPriority})';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        children: [
-          Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: onViewDetails,
-              child: _ListBlock(
-                leading: Icons.work,
-                title: '${project.projectId} - ${project.name}',
-                subtitle:
-                    '${project.owner} - ${project.deadline} - ${project.procedure} - ${project.dentition} ${project.tooth}$note$followUp',
-                trailing: '${(project.progress * 100).round()}%',
-                trailingWidget: onViewDetails == null
-                    ? null
-                    : Tooltip(
-                        message: 'View invoice detail',
-                        child: IconButton.filledTonal(
-                          onPressed: onViewDetails,
-                          icon: const Icon(Icons.chevron_right),
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size(36, 36),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
-                color: project.color,
-              ),
-            ),
-          ),
-          LinearProgressIndicator(value: project.progress),
-        ],
-      ),
     );
   }
 }
@@ -9350,6 +9992,7 @@ class _ProjectFormState extends State<_ProjectForm> {
                 ),
               ),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: followUpChannel,
                 decoration: _inputDecoration(
                   icon: Icons.mark_chat_unread_outlined,
@@ -9373,6 +10016,7 @@ class _ProjectFormState extends State<_ProjectForm> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: followUpPriority,
                 decoration: _inputDecoration(
                   icon: Icons.priority_high_outlined,
@@ -9395,6 +10039,7 @@ class _ProjectFormState extends State<_ProjectForm> {
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: priority,
           decoration: _inputDecoration(
             icon: Icons.flag_outlined,
@@ -10287,71 +10932,171 @@ class _ProgressRow extends StatelessWidget {
   }
 }
 
-class _UserCard extends StatelessWidget {
-  const _UserCard({required this.user});
+class _PatientRecordList extends StatelessWidget {
+  const _PatientRecordList({required this.emptyText, required this.children});
 
-  final ClinicUser user;
+  final String emptyText;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
+    if (children.isEmpty) {
+      return Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE1E7EC)),
+        ),
+        child: Text(
+          emptyText,
+          style: const TextStyle(color: Color(0xFF64748B)),
+        ),
+      );
+    }
+
+    return Column(children: children);
+  }
+}
+
+class _PatientRecordLine extends StatelessWidget {
+  const _PatientRecordLine({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1E7EC)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  backgroundColor: user.color.withValues(alpha: 0.15),
-                  child: Text(
-                    user.initials,
-                    style: TextStyle(
-                      color: user.color,
-                      fontWeight: FontWeight.w900,
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 3),
+                Text(subtitle, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserCard extends StatelessWidget {
+  const _UserCard({required this.user, this.onTap});
+
+  final ClinicUser user;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: user.color.withValues(alpha: 0.15),
+                    child: Text(
+                      user.initials,
+                      style: TextStyle(
+                        color: user.color,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.name,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                      Text(user.role),
-                    ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.name,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(user.role),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Age ${user.age}',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            Text(user.phone, maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Text(user.address, maxLines: 1, overflow: TextOverflow.ellipsis),
-            const Spacer(),
-            Row(
-              children: [
-                _StatusPill(label: user.status, color: user.color),
-                const Spacer(),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.more_horiz),
-                  tooltip: 'Actions',
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Age ${user.age}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(user.phone, maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 4),
+              Text(user.address, maxLines: 1, overflow: TextOverflow.ellipsis),
+              const Spacer(),
+              Row(
+                children: [
+                  _StatusPill(label: user.status, color: user.color),
+                  const Spacer(),
+                  if (user.isPatient)
+                    IconButton(
+                      onPressed: onTap,
+                      icon: const Icon(Icons.folder_shared_outlined),
+                      tooltip: 'Patient record',
+                    )
+                  else
+                    IconButton(
+                      onPressed: () {},
+                      icon: const Icon(Icons.more_horiz),
+                      tooltip: 'Actions',
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
+
+    if (onTap == null) {
+      return card;
+    }
+
+    return Semantics(button: true, child: card);
   }
 }
 
@@ -10449,6 +11194,13 @@ class _FollowUpCard extends StatelessWidget {
             Text(
               followUp.doctor,
               style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              followUp.speciality,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF52606D)),
             ),
             const SizedBox(height: 6),
             Text(followUp.reason, maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -10634,15 +11386,9 @@ class _MedicineCard extends StatelessWidget {
 }
 
 class _ProcedureCard extends StatelessWidget {
-  const _ProcedureCard({
-    required this.procedure,
-    this.onApplyToProject,
-    this.onEdit,
-    this.onDelete,
-  });
+  const _ProcedureCard({required this.procedure, this.onEdit, this.onDelete});
 
   final DentalProcedure procedure;
-  final VoidCallback? onApplyToProject;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -10744,27 +11490,24 @@ class _ProcedureCard extends StatelessWidget {
                 Text('${(procedure.progress * 100).round()}%'),
               ],
             ),
-            if (onApplyToProject != null) ...[
+            if (onEdit != null || onDelete != null) ...[
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: onApplyToProject,
-                    icon: const Icon(Icons.work_outline),
-                    label: const Text('Apply to project'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Edit'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Delete'),
-                  ),
+                  if (onEdit != null)
+                    OutlinedButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Edit'),
+                    ),
+                  if (onDelete != null)
+                    OutlinedButton.icon(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Delete'),
+                    ),
                 ],
               ),
             ],
@@ -11117,6 +11860,92 @@ class ClinicUser {
   final String age;
   final String phone;
   final String address;
+
+  bool get isPatient => role == 'Patient';
+}
+
+class PatientRecord {
+  const PatientRecord({
+    required this.patient,
+    required this.appointments,
+    required this.procedures,
+    required this.projects,
+    required this.invoices,
+    required this.pharmacyDispenses,
+    required this.pharmacyPayments,
+    required this.followUps,
+    required this.clinicalNotes,
+  });
+
+  final ClinicUser patient;
+  final List<Appointment> appointments;
+  final List<DentalProcedure> procedures;
+  final List<ClinicProject> projects;
+  final List<Invoice> invoices;
+  final List<PharmacyDispense> pharmacyDispenses;
+  final List<PharmacyPayment> pharmacyPayments;
+  final List<FollowUp> followUps;
+  final List<PatientClinicalNote> clinicalNotes;
+
+  factory PatientRecord.forPatient(ClinicUser patient) {
+    final appointments = sampleAppointments
+        .where((appointment) => appointment.patient == patient.name)
+        .toList();
+    final procedures = sampleProcedures
+        .where((procedure) => procedure.patient == patient.name)
+        .toList();
+    final projects = sampleProjects
+        .where((project) => project.name == patient.name)
+        .toList();
+    final invoices = sampleInvoices
+        .where((invoice) => invoice.patient == patient.name)
+        .toList();
+    final pharmacyDispenses = samplePharmacyDispenses
+        .where((dispense) => dispense.patient == patient.name)
+        .toList();
+    final pharmacyPayments = samplePharmacyPayments
+        .where((payment) => payment.patient == patient.name)
+        .toList();
+    final followUps = sampleFollowUps
+        .where((followUp) => followUp.patient == patient.name)
+        .toList();
+    final clinicalNotes = [
+      for (final project in projects)
+        if (project.clinicalNote.isNotEmpty)
+          PatientClinicalNote(
+            project.projectId,
+            project.clinicalNote,
+            project.color,
+          ),
+      for (final invoice in invoices)
+        if (invoice.clinicalNote.isNotEmpty)
+          PatientClinicalNote(
+            invoice.number,
+            invoice.clinicalNote,
+            invoice.color,
+          ),
+    ];
+
+    return PatientRecord(
+      patient: patient,
+      appointments: appointments,
+      procedures: procedures,
+      projects: projects,
+      invoices: invoices,
+      pharmacyDispenses: pharmacyDispenses,
+      pharmacyPayments: pharmacyPayments,
+      followUps: followUps,
+      clinicalNotes: clinicalNotes,
+    );
+  }
+}
+
+class PatientClinicalNote {
+  const PatientClinicalNote(this.title, this.detail, this.color);
+
+  final String title;
+  final String detail;
+  final Color color;
 }
 
 String initialsForName(String name) {
@@ -11476,6 +12305,25 @@ class FollowUp {
   final String channel;
   final String priority;
   final Color color;
+
+  String get speciality {
+    final normalizedDoctor = doctor.toLowerCase();
+
+    if (normalizedDoctor.contains('lee')) {
+      return 'Orthodontics';
+    }
+    if (normalizedDoctor.contains('priya')) {
+      return 'Oral surgery';
+    }
+    if (normalizedDoctor.contains('wong')) {
+      return 'Paediatric dentistry';
+    }
+    if (normalizedDoctor.contains('amir')) {
+      return 'Implantology';
+    }
+
+    return 'General dentistry';
+  }
 }
 
 class PharmacyDispense {
@@ -11671,6 +12519,7 @@ class DentalProcedure {
     this.discountValue = '',
     this.procedureCategory = '',
     this.tag = '',
+    this.patient = '',
   });
 
   final String name;
@@ -11688,6 +12537,7 @@ class DentalProcedure {
   final String discountValue;
   final String procedureCategory;
   final String tag;
+  final String patient;
 
   String get categoryPath {
     return [
@@ -12072,16 +12922,6 @@ const sampleUsers = [
     'Room 3B',
   ),
   ClinicUser(
-    'Ben Tan',
-    'User',
-    'New patient',
-    'BT',
-    Color(0xFF2563EB),
-    '25',
-    '+60 12-555 0105',
-    '7 Jalan Sentral',
-  ),
-  ClinicUser(
     'Farah Lim',
     'Cashier',
     'Insurance',
@@ -12110,6 +12950,49 @@ const sampleUsers = [
     '45',
     '+60 12-555 0108',
     'Owner suite',
+  ),
+];
+
+const samplePatients = [
+  ClinicUser(
+    'Ben Tan',
+    'Patient',
+    'New patient',
+    'BT',
+    Color(0xFF2563EB),
+    '25',
+    '+60 12-550 7712',
+    '7 Jalan Sentral',
+  ),
+  ClinicUser(
+    'Mei Chen',
+    'Patient',
+    'Implant consult',
+    'MC',
+    Color(0xFF166534),
+    '44',
+    '+60 13-802 4410',
+    '18 Jalan Bukit',
+  ),
+  ClinicUser(
+    'Ravi Kumar',
+    'Patient',
+    'Surgery review',
+    'RK',
+    Color(0xFFC2410C),
+    '51',
+    '+60 17-225 0983',
+    '5 Jalan Klang',
+  ),
+  ClinicUser(
+    'Nora Aziz',
+    'Patient',
+    'Crown fitting',
+    'NA',
+    Color(0xFF0B7285),
+    '37',
+    '+60 19-441 6620',
+    '3 Jalan Melati',
   ),
 ];
 
@@ -13627,6 +14510,7 @@ const sampleProcedures = [
     'Therapeutic',
     'Endodontics',
     'Root canal',
+    patient: 'Ben Tan',
   ),
   DentalProcedure(
     'Dental Implant',
@@ -13640,6 +14524,7 @@ const sampleProcedures = [
     'Surgical',
     'Implant',
     'Single implant',
+    patient: 'Mei Chen',
   ),
   DentalProcedure(
     'Wisdom Tooth',
@@ -13653,6 +14538,7 @@ const sampleProcedures = [
     'Surgical',
     'Extraction',
     'Wisdom tooth',
+    patient: 'Ravi Kumar',
   ),
   DentalProcedure(
     'Braces Plan',
@@ -13666,6 +14552,7 @@ const sampleProcedures = [
     'Preventive',
     'Pediatric',
     'Space maintainer',
+    patient: 'Ben Tan',
   ),
 ];
 

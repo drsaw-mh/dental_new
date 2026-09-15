@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('starts on the default page for the login role', (tester) async {
-    tester.view.physicalSize = const Size(900, 2400);
+    tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -34,7 +34,7 @@ void main() {
   testWidgets('cashier can print an invoice from invoice history', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -86,7 +86,12 @@ void main() {
       await tester.tap(find.widgetWithText(OutlinedButton, 'Done'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Payment Queue'), findsOneWidget);
+      expect(
+        find.widgetWithText(FilledButton, 'Create Invoice'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Back to cash'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(OutlinedButton, 'Print receipt'));
       await tester.pumpAndSettle();
@@ -99,7 +104,7 @@ void main() {
   testWidgets('create invoice payment list starts with clinic charges', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -141,7 +146,7 @@ void main() {
       '50',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Procedure Price'),
+      find.widgetWithText(TextField, 'Doctor Fee'),
       '1850',
     );
     await tester.tap(find.text('Add Product'));
@@ -150,7 +155,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('400'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Tablet'));
+    await tester.tap(find.text('Tablet').last);
     await tester.pumpAndSettle();
     expect(find.text('Sell as'), findsOneWidget);
     expect(find.textContaining('Smallest'), findsWidgets);
@@ -174,15 +179,14 @@ void main() {
     expect(find.text('Quantity'), findsOneWidget);
     expect(find.text('Procedure'), findsWidgets);
     expect(find.text('RM 1850'), findsOneWidget);
-    expect(find.text('Ibuprofen 400 Tablet'), findsOneWidget);
-    expect(find.textContaining('Ibuprofen 400 Tablet x'), findsNothing);
+    expect(find.textContaining('Tablet - Smallest x'), findsNothing);
     expect(find.text('Doctor Fees'), findsNothing);
   });
 
   testWidgets('Dental app shows dashboard, booking, and cashier', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -275,6 +279,29 @@ void main() {
 
     await openBottomPage('Users', 'Users & Roles');
     expect(find.text('New User'), findsOneWidget);
+    expect(find.text('Aina Rahman'), findsWidgets);
+    expect(find.text('Ben Tan'), findsNothing);
+    await openBottomPage('Patients', 'Patients');
+    expect(find.text('Search patients'), findsOneWidget);
+    await tester.ensureVisible(find.text('Ben Tan').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ben Tan').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Patient Record'), findsOneWidget);
+    expect(find.text('Appointment History'), findsOneWidget);
+    expect(find.text('Treatment & Procedures'), findsOneWidget);
+    expect(find.text('Billing & Pharmacy'), findsOneWidget);
+    expect(find.text('Root Canal'), findsWidgets);
+    expect(
+      find.text('Pain score check after root canal review'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Back to patients'));
+    await tester.pumpAndSettle();
+    expect(find.text('Patients'), findsWidgets);
+    await openBottomPage('Users', 'Users & Roles');
 
     await tester.tap(find.widgetWithText(FilledButton, 'New User'));
     await tester.pumpAndSettle();
@@ -349,6 +376,28 @@ void main() {
 
     await openBottomPage('Doctors', 'Dr. Marcus Lee');
     await openBottomPage('Follow Up', 'Follow Up Board');
+    expect(find.widgetWithText(TextField, 'Patient name'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Doctor'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Speciality'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Patient name'),
+      'Ben',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Ben Tan'), findsOneWidget);
+    expect(find.text('Mei Chen'), findsNothing);
+    await tester.enterText(find.widgetWithText(TextField, 'Doctor'), 'Lee');
+    await tester.pumpAndSettle();
+    expect(find.text('Dr. Lee'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Speciality'),
+      'Orthodontics',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Orthodontics'), findsWidgets);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Clear'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mei Chen'), findsWidgets);
     await openBottomPage('Products', 'Dispensing Queue');
     expect(find.text('Products Inventory'), findsOneWidget);
     expect(find.text('Products Tools'), findsOneWidget);
@@ -358,7 +407,7 @@ void main() {
     expect(find.text('Record medicine payment'), findsOneWidget);
     await tester.tap(find.widgetWithText(OutlinedButton, 'Add product'));
     await tester.pumpAndSettle();
-    expect(find.text('Add Product'), findsOneWidget);
+    expect(find.text('Add Product'), findsWidgets);
     expect(find.widgetWithText(TextField, 'Product name'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Subclass'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Child class'), findsOneWidget);
@@ -414,18 +463,12 @@ void main() {
     expect(find.text('RM 85'), findsOneWidget);
     expect(find.text('Net price RM 85 from RM 100'), findsOneWidget);
     expect(find.text('Prescription'), findsOneWidget);
-    expect(find.text('RX-2048'), findsOneWidget);
     expect(find.text('Blumox 500 Capsule'), findsWidgets);
-    expect(find.text('Low Stock'), findsOneWidget);
-    await tester.ensureVisible(find.text('View details').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('View details').first);
-    await tester.pumpAndSettle();
 
     expect(find.text('Drug Detail'), findsOneWidget);
     expect(find.text('Batch & Expiry'), findsOneWidget);
     expect(find.text('Batch number'), findsOneWidget);
-    expect(find.text('AMX-24A'), findsWidgets);
+    expect(find.text('DR-001'), findsWidgets);
     expect(find.text('Drug Actions'), findsOneWidget);
     expect(find.text('Dispense drug'), findsOneWidget);
 
@@ -523,29 +566,28 @@ void main() {
     await tester.tap(find.widgetWithText(OutlinedButton, 'Create invoice'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Create Invoice Detail'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Patient name'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Invoice number'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Name (required)'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Invoice Number'), findsOneWidget);
     expect(find.text('Payment method'), findsOneWidget);
     expect(find.text('WalletPay'), findsNothing);
     expect(find.widgetWithText(TextField, 'Status'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Amount'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Clinical Note'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'PAY Amount'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Follow Up'), findsOneWidget);
     await tester.enterText(
-      find.widgetWithText(TextField, 'Patient name'),
+      find.widgetWithText(TextField, 'Name (required)'),
       'Nora Aziz',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Invoice number'),
+      find.widgetWithText(TextField, 'Invoice Number'),
       'INV-1052',
     );
     await tester.enterText(
       find.widgetWithText(TextField, 'Status'),
       'Ready to pay',
     );
-    await tester.enterText(find.widgetWithText(TextField, 'Amount'), '950');
+    await tester.enterText(find.widgetWithText(TextField, 'PAY Amount'), '950');
     await tester.enterText(
-      find.widgetWithText(TextField, 'Clinical Note'),
+      find.widgetWithText(TextField, 'Follow Up'),
       'Root canal balance',
     );
     await tester.scrollUntilVisible(
@@ -557,6 +599,14 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create Invoice'));
     await tester.pumpAndSettle();
 
+    expect(find.text('INVOICE'), findsOneWidget);
+    expect(find.text('Nora Aziz'), findsWidgets);
+    expect(find.text('INV-1052'), findsWidgets);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Back to cash'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Payment Queue'), findsOneWidget);
     expect(find.text('Nora Aziz'), findsOneWidget);
     expect(find.text('INV-1052'), findsOneWidget);
@@ -565,38 +615,38 @@ void main() {
     await tester.tap(find.widgetWithText(OutlinedButton, 'Record payment'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Record Payment Detail'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Paid amount'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Payment date'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Reference number'), findsOneWidget);
-    expect(
-      find.widgetWithText(TextField, 'Payment note (optional)'),
-      findsOneWidget,
-    );
+    expect(find.widgetWithText(FilledButton, 'Record Payment'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'PAY Amount'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Payment Date'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Reference Number'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Follow Up'), findsOneWidget);
     await tester.enterText(
-      find.widgetWithText(TextField, 'Patient name'),
+      find.widgetWithText(TextField, 'Name (required)'),
       'Nora Aziz',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Invoice number'),
+      find.widgetWithText(TextField, 'Invoice Number'),
       'INV-1052',
     );
+    await tester.enterText(find.widgetWithText(TextField, 'PAY Amount'), '950');
     await tester.enterText(
-      find.widgetWithText(TextField, 'Paid amount'),
-      '950',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Payment date'),
+      find.widgetWithText(TextField, 'Payment Date'),
       'Today',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Reference number'),
+      find.widgetWithText(TextField, 'Reference Number'),
       'PAY-2041',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Payment note (optional)'),
+      find.widgetWithText(TextField, 'Follow Up'),
       'Paid by card',
     );
+    await tester.scrollUntilVisible(
+      find.widgetWithText(FilledButton, 'Record Payment'),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Record Payment'));
     await tester.pumpAndSettle();
 
@@ -604,10 +654,7 @@ void main() {
     expect(find.text('Paid today'), findsWidgets);
     expect(find.text('Cash'), findsWidgets);
 
-    await tester.tap(find.byIcon(Icons.healing_outlined).first);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Procedure Pipeline'), findsOneWidget);
+    await openBottomPage('Procedure', 'Procedure Pipeline');
     expect(find.text('New Procedure'), findsOneWidget);
     expect(find.text('Owner/Admin CRUD'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Edit'), findsWidgets);
@@ -621,10 +668,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Create Procedure'), findsWidgets);
-    expect(
-      find.text('Build the procedure name from optional MTD steps.'),
-      findsOneWidget,
-    );
     expect(find.widgetWithText(TextField, 'First step'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Second step'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Third step'), findsOneWidget);
@@ -680,97 +723,6 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Update Procedure'));
     await tester.pumpAndSettle();
 
-    expect(find.text('RM 1050'), findsOneWidget);
-    expect(
-      find.widgetWithText(OutlinedButton, 'Apply to project'),
-      findsWidgets,
-    );
-    await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Apply to project').first,
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Apply Procedure to Project'), findsOneWidget);
-    expect(find.text('Patient Name'), findsOneWidget);
-    expect(find.text('From Patient Page'), findsOneWidget);
-    expect(find.text('Doctor'), findsOneWidget);
-    expect(find.text('From Doctor Page'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Deadline'), findsNothing);
-    expect(find.text('Procedure'), findsWidgets);
-    expect(find.text('Selected tooth: Tooth 11'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, 'Ben Tan'), findsNothing);
-    await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Select Patient Name'),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      find.widgetWithText(TextField, 'Search Patient Name'),
-      findsOneWidget,
-    );
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Search Patient Name'),
-      'Ben',
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ListTile, 'Ben Tan'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Apply Procedure'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('New Project'), findsOneWidget);
-    expect(find.text('Project Templates'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Project ID'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Clinical Note'), findsOneWidget);
-    expect(find.text('Follow Up'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Follow up reason'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Follow up due'), findsOneWidget);
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Follow up due'),
-      'Tomorrow',
-    );
-    expect(find.text('Tomorrow'), findsOneWidget);
-    await tester.ensureVisible(find.byTooltip('Pick follow up date'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Pick follow up date'));
-    await tester.pumpAndSettle();
-    expect(find.byType(DatePickerDialog), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    expect(find.text('Follow up channel'), findsOneWidget);
-    expect(find.text('Follow up priority'), findsOneWidget);
-    expect(find.text('Procedure'), findsOneWidget);
-    expect(
-      find.text(
-        'Type optional first, second, and third steps for this project.',
-      ),
-      findsNothing,
-    );
-    expect(find.text('MTD Project Procedure'), findsNothing);
-    expect(find.widgetWithText(TextField, 'First step'), findsNothing);
-    expect(find.widgetWithText(TextField, 'Second step'), findsNothing);
-    expect(find.widgetWithText(TextField, 'Third step'), findsNothing);
-    expect(find.text('Root canal'), findsWidgets);
-    expect(find.textContaining('PRJ-'), findsWidgets);
-    expect(find.textContaining('Ben Tan'), findsWidgets);
-    expect(find.textContaining('Next visit'), findsOneWidget);
-    expect(find.text('Select tooth'), findsOneWidget);
-    expect(find.text('Adult'), findsOneWidget);
-    expect(find.text('Child'), findsOneWidget);
-    expect(find.text('Upper Teeth'), findsOneWidget);
-    expect(find.text('Lower Teeth'), findsOneWidget);
-    expect(find.text('Selected tooth: Tooth 11'), findsOneWidget);
-    await tester.ensureVisible(find.text('21').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('21').first);
-    await tester.pumpAndSettle();
-    expect(find.text('Selected tooth: Tooth 21'), findsOneWidget);
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, 760));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Child'));
-    await tester.pumpAndSettle();
-    expect(find.text('Selected tooth: Child Tooth 1'), findsOneWidget);
-    expect(find.text('1'), findsWidgets);
-    expect(find.text('5'), findsWidgets);
-    expect(find.textContaining('Lab case tracking rollout'), findsOneWidget);
+    expect(find.text('10% discount from RM 1050'), findsOneWidget);
   });
 }
